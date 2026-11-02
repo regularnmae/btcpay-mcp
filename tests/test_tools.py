@@ -81,12 +81,24 @@ def test_invoices_build_the_greenfield_filters(call, fake_client) -> None:
     assert store == "store1"
     assert params["status"] == ["Settled", "Expired"]
     assert params["textSearch"] == "order-1"
-    assert params["startDate"] == "2026-11-01T00:00:00Z"
-    assert params["endDate"] == "2026-11-02T00:00:00Z"
+    assert params["startDate"] == 1793491200
+    assert params["endDate"] == 1793577600
     assert params["skip"] == 5
     assert params["take"] == 10
     assert params["includePaymentMethods"] == "true"
     assert payload["filters"]["status"] == ["Settled", "Expired"]
+
+
+def test_invoices_accept_a_unix_timestamp(call, fake_client) -> None:
+    _payload(call("list_invoices", start_date="1793491200"))
+    _, args, _ = fake_client.calls[-1]
+    assert args[1]["startDate"] == 1793491200
+
+
+def test_an_invalid_date_is_a_tool_error(error_call, fake_client) -> None:
+    text = error_call("list_invoices", start_date="last tuesday")
+    assert "Unix seconds" in text
+    assert fake_client.calls == []
 
 
 def test_invoices_redact_payment_preimages(call, fake_client) -> None:

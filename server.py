@@ -360,19 +360,27 @@ def _statuses(value: str | None) -> list[str] | None:
     return statuses
 
 
-def _instant(value: str, label: str) -> str:
-    """An RFC3339 instant as BTCPay's `Z` form, or a ValueError naming it."""
+def _timestamp(value: str, label: str) -> int:
+    """A Unix timestamp as BTCPay's list filters want it.
+
+    Greenfield's `startDate`/`endDate` are `UnixTimestamp`, not ISO strings
+    (the live API answers 422 for an RFC3339 value). RFC3339 is accepted as a
+    convenience and converted, because a model is more likely to have a date
+    than an epoch; whole seconds are passed through untouched.
+    """
     text = value.strip()
+    if text.isdigit():
+        return int(text)
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as err:
         raise ValueError(
-            f"{label} must be an RFC3339 instant like 2026-11-02T10:00:00Z "
-            f"or 2026-11-02T10:00:00+00:00, not {value!r}"
+            f"{label} must be Unix seconds like 1793573278, or an RFC3339 "
+            f"instant like 2026-11-02T10:00:00Z, not {value!r}"
         ) from err
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return int(parsed.timestamp())
 
 
 def _text(value: str | None, label: str) -> str | None:
@@ -438,8 +446,8 @@ def _invoices(
     params: dict[str, Any] = {
         "status": _statuses(status),
         "textSearch": _text(text_search, "text_search"),
-        "startDate": _instant(start_date, "start_date") if start_date else None,
-        "endDate": _instant(end_date, "end_date") if end_date else None,
+        "startDate": _timestamp(start_date, "start_date") if start_date else None,
+        "endDate": _timestamp(end_date, "end_date") if end_date else None,
         "skip": skip,
         "take": _clamp(take, MAX_LIMIT),
         "includePaymentMethods": "true" if include_payment_methods else None,
@@ -724,11 +732,12 @@ def list_invoices(
 
     The settlement question: `status` filters one or more of `New`,
     `Processing`, `Expired`, `Invalid`, `Settled` (comma-separated);
-    `start_date`/`end_date` take RFC3339 instants; `text_search` matches the
-    invoice's text fields. Rows carry `amount`, `paidAmount`, `currency`,
-    `status`, `createdTime` and `metadata`; `createdTime` and the other
-    timestamps are Unix seconds. With `include_payment_methods=true` each row
-    also carries its per-rail destinations and payments (preimages redacted).
+    `start_date`/`end_date` are Unix seconds (an RFC3339 instant also works
+    and is converted); `text_search` matches the invoice's text fields. Rows
+    carry `amount`, `paidAmount`, `currency`, `status`, `createdTime` and
+    `metadata`; `createdTime` and the other timestamps are Unix seconds. With
+    `include_payment_methods=true` each row also carries its per-rail
+    destinations and payments (preimages redacted).
 
     Page with `skip`/`take`. A full page sets `truncated: true`, because
     BTCPay's list endpoint returns no total -- page until it stops being set.
@@ -737,8 +746,10 @@ def list_invoices(
         store_id: Store id (default: BTCPAY_STORE_ID).
         status: One or more statuses, comma-separated.
         text_search: Free-text filter (order id, buyer email, ...).
-        start_date: Only invoices created at/after this RFC3339 instant.
-        end_date: Only invoices created at/before this RFC3339 instant.
+        start_date: Only invoices created at/after this Unix timestamp (or
+            RFC3339 instant).
+        end_date: Only invoices created at/before this Unix timestamp (or
+            RFC3339 instant).
         skip: Rows to skip (default 0).
         take: Rows to return (1-100, default 50).
         include_payment_methods: Include per-rail payment details.
