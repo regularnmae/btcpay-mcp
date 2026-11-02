@@ -154,6 +154,19 @@ _REDACT_KEYS = frozenset(
     }
 )
 
+# The four reads this server's tools need. The stack's bootstrap mints exactly
+# these; checking them here turns a hand-replaced or partially-scoped key into a
+# named health finding instead of a 403 on whichever tool a model happens to
+# call first.
+REQUIRED_PERMISSIONS = frozenset(
+    {
+        "btcpay.store.canviewstoresettings",
+        "btcpay.store.canviewinvoices",
+        "btcpay.store.canviewpaymentrequests",
+        "btcpay.store.canviewwallet",
+    }
+)
+
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 _PAYMENT_METHOD = re.compile(r"^[A-Za-z0-9-]{1,40}$")
 _CURRENCY_PAIR = re.compile(r"^[A-Za-z0-9]{1,12}_[A-Za-z0-9]{1,12}$")
@@ -593,13 +606,27 @@ def _health() -> dict[str, Any]:
         return report
 
     permissions = info.get("permissions")
+    granted = permissions if isinstance(permissions, list) else []
+    names = {
+        permission.split(":", 1)[0]
+        for permission in granted
+        if isinstance(permission, str)
+    }
+    missing = (
+        []
+        if "unrestricted" in names
+        else sorted(REQUIRED_PERMISSIONS - names)
+    )
     report["api_key"] = {
         "configured": True,
         "label": info.get("label"),
         "id": info.get("id"),
-        "permissions": permissions if isinstance(permissions, list) else [],
+        "permissions": granted,
     }
+    if missing:
+        report["api_key"]["missing_permissions"] = missing
 
+    degraded = bool(missing)
     if BTCPAY_STORE_ID:
         try:
             store = client.store(_store_id(None))
@@ -609,7 +636,9 @@ def _health() -> dict[str, Any]:
             return report
         report["store"] = {"id": store.get("id"), "name": store.get("name")}
 
-    report["status"] = "ok" if report["synchronized"] is not False else "degraded"
+    report["status"] = (
+        "ok" if not degraded and report["synchronized"] is not False else "degraded"
+    )
     return report
 
 

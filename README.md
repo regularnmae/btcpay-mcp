@@ -40,6 +40,10 @@ itself), and `connectionString`/macaroon/password/token fields in any config.
 Internal `http://btcpay:49392/...` links are rewritten to `BTCPAY_PUBLIC_URL`
 when the stack sets it, so a checkout link is usable.
 
+`get_btcpay_health` is the first call when a tool returns 403: it reports the
+key's label, id and permissions, and names any of the four that are missing
+without ever returning the key itself.
+
 ## Tools
 
 | Tool | Answers | BTCPay call |

@@ -50,8 +50,10 @@ class FakeBtcpay:
             "id": "key-id",
             "label": "boltmesh-mcp",
             "permissions": [
-                "btcpay.store.canviewstoresettings",
-                "btcpay.store.canviewinvoices",
+                "btcpay.store.canviewstoresettings:store1",
+                "btcpay.store.canviewinvoices:store1",
+                "btcpay.store.canviewpaymentrequests:store1",
+                "btcpay.store.canviewwallet:store1",
             ],
             "apiKey": "the-key-itself-must-never-be-returned",
         }

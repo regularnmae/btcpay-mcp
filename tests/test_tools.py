@@ -182,6 +182,21 @@ def test_health_reports_an_unconfigured_key(call, fake_client, monkeypatch) -> N
     assert [name for name, _, _ in fake_client.calls] == ["health"]
 
 
+def test_health_reports_a_key_missing_a_permission(call, fake_client, monkeypatch) -> None:
+    fake_client.api_key_data = {
+        "id": "key-id",
+        "label": "boltmesh-mcp",
+        "permissions": ["btcpay.store.canviewstoresettings:store1"],
+    }
+    payload = _payload(call("get_btcpay_health"))
+    assert payload["status"] == "degraded"
+    assert payload["api_key"]["missing_permissions"] == [
+        "btcpay.store.canviewinvoices",
+        "btcpay.store.canviewpaymentrequests",
+        "btcpay.store.canviewwallet",
+    ]
+
+
 def test_health_reports_a_refused_key(call, fake_client, monkeypatch) -> None:
     def boom() -> dict[str, Any]:
         raise BtcpayError("BTCPay refused the API key (403): forbidden", 403)
