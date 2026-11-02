@@ -90,9 +90,13 @@ def test_invoices_build_the_greenfield_filters(call, fake_client) -> None:
 
 
 def test_invoices_accept_a_unix_timestamp(call, fake_client) -> None:
-    _payload(call("list_invoices", start_date="1793491200"))
+    _payload(call("list_invoices", start_date=1793491200))
     _, args, _ = fake_client.calls[-1]
     assert args[1]["startDate"] == 1793491200
+
+    _payload(call("list_invoices", start_date="1793577600"))
+    _, args, _ = fake_client.calls[-1]
+    assert args[1]["startDate"] == 1793577600
 
 
 def test_an_invalid_date_is_a_tool_error(error_call, fake_client) -> None:

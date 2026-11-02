@@ -360,15 +360,22 @@ def _statuses(value: str | None) -> list[str] | None:
     return statuses
 
 
-def _timestamp(value: str, label: str) -> int:
+def _timestamp(value: str | int, label: str) -> int:
     """A Unix timestamp as BTCPay's list filters want it.
 
     Greenfield's `startDate`/`endDate` are `UnixTimestamp`, not ISO strings
-    (the live API answers 422 for an RFC3339 value). RFC3339 is accepted as a
-    convenience and converted, because a model is more likely to have a date
-    than an epoch; whole seconds are passed through untouched.
+    (the live API answers 422 for an RFC3339 value). An int is passed through,
+    which is what `agent-mcp`'s CLI produces for an unquoted number; a string
+    may be whole seconds or an RFC3339 instant, converted as a convenience
+    because a model is more likely to have a date than an epoch.
     """
+    if isinstance(value, int):
+        if value < 0:
+            raise ValueError(f"{label} must not be negative")
+        return value
     text = value.strip()
+    if len(text) > 40:
+        raise ValueError(f"{label} is capped at 40 characters")
     if text.isdigit():
         return int(text)
     try:
@@ -436,8 +443,8 @@ def _invoices(
     store_id: str | None,
     status: str | None,
     text_search: str | None,
-    start_date: str | None,
-    end_date: str | None,
+    start_date: str | int | None,
+    end_date: str | int | None,
     skip: int,
     take: int,
     include_payment_methods: bool,
@@ -722,8 +729,8 @@ def list_invoices(
     store_id: Annotated[str | None, Field(max_length=100)] = None,
     status: Annotated[str | None, Field(max_length=MAX_TEXT)] = None,
     text_search: Annotated[str | None, Field(max_length=MAX_TEXT)] = None,
-    start_date: Annotated[str | None, Field(max_length=40)] = None,
-    end_date: Annotated[str | None, Field(max_length=40)] = None,
+    start_date: Annotated[str | int | None, Field(description="Unix seconds or RFC3339")] = None,
+    end_date: Annotated[str | int | None, Field(description="Unix seconds or RFC3339")] = None,
     skip: Annotated[int, Field(ge=0, le=100_000)] = 0,
     take: Annotated[int, Field(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     include_payment_methods: bool = False,
